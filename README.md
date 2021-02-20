@@ -31,4 +31,4 @@ The Spring Framework is released under version 2.0 of the [Apache License](https
 
 ## Note
 
-The Spring Framework Notes is here [Notes](spring-doc/summary.md)
+The Spring Framework [Notes](spring-doc/summary.md) is here
