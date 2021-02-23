@@ -59,70 +59,82 @@ protected void loadBeanDefinitions(XmlBeanDefinitionReader reader) throws BeansE
 //TODO
 
 #### 刷新容器
-refresh 方法,定义在ConfigurableApplicationContext接口中
+refresh 方法,定义在ConfigurableApplicationContext接口中,实现在
 ```java
 public void refresh() throws BeansException, IllegalStateException {
-		synchronized (this.startupShutdownMonitor) {
-			// Prepare this context for refreshing.
-			prepareRefresh();
+    synchronized (this.startupShutdownMonitor) {
+        // Prepare this context for refreshing.
+        // 提供子类操作的initPropertySources， 验证环境变量
+        prepareRefresh();
 
-			// Tell the subclass to refresh the internal bean factory.
-			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+        // Tell the subclass to refresh the internal bean factory.
+        // 配置文件解析，注册BeanDefinition
+        ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
-			// Prepare the bean factory for use in this context.
-			prepareBeanFactory(beanFactory);
+        // Prepare the bean factory for use in this context.
+        // BeanFactory的初始配置
+        prepareBeanFactory(beanFactory);
 
-			try {
-				// Allows post-processing of the bean factory in context subclasses.
-				postProcessBeanFactory(beanFactory);
+        try {
+          // Allows post-processing of the bean factory in context subclasses.
+          // 供子类实现
+          postProcessBeanFactory(beanFactory);
+  
+          // Invoke factory processors registered as beans in the context.
+          // BeanFactory后置处理器，通知注册BeanDefinition
+          invokeBeanFactoryPostProcessors(beanFactory);
+  
+          // Register bean processors that intercept bean creation.
+          // 注册后置处理器
+          registerBeanPostProcessors(beanFactory);
+  
+          // Initialize message source for this context.
+          // 国际化
+          initMessageSource();
+  
+          // Initialize event multicaster for this context.
+          // 初始化ApplicationEventMulticaster，默认实现SimpleApplicationEventMulticaster
+          initApplicationEventMulticaster();
+  
+          // Initialize other special beans in specific context subclasses.
+          // 子类实现此时普通Bean未初始化
+          onRefresh();
+  
+          // Check for listener beans and register them.
+          // 初始化ApplicationListener,并广播earlyApplicationEvents
+          registerListeners();
+  
+          // Instantiate all remaining (non-lazy-init) singletons.
+          // 初始化剩余Bean
+          finishBeanFactoryInitialization(beanFactory);
+  
+          // Last step: publish corresponding event.
+          // 发送ContextRefreshedEvent事件
+          finishRefresh();
+        }
 
-				// Invoke factory processors registered as beans in the context.
-				invokeBeanFactoryPostProcessors(beanFactory);
+        catch (BeansException ex) {
+            if (logger.isWarnEnabled()) {
+            logger.warn("Exception encountered during context initialization - " +
+            "cancelling refresh attempt: " + ex);
+            }
 
-				// Register bean processors that intercept bean creation.
-				registerBeanPostProcessors(beanFactory);
+            // Destroy already created singletons to avoid dangling resources.
+            destroyBeans();
 
-				// Initialize message source for this context.
-				initMessageSource();
+            // Reset 'active' flag.
+            cancelRefresh(ex);
 
-				// Initialize event multicaster for this context.
-				initApplicationEventMulticaster();
+            // Propagate exception to caller.
+            throw ex;
+        }
 
-				// Initialize other special beans in specific context subclasses.
-				onRefresh();
-
-				// Check for listener beans and register them.
-				registerListeners();
-
-				// Instantiate all remaining (non-lazy-init) singletons.
-				finishBeanFactoryInitialization(beanFactory);
-
-				// Last step: publish corresponding event.
-				finishRefresh();
-			}
-
-			catch (BeansException ex) {
-				if (logger.isWarnEnabled()) {
-					logger.warn("Exception encountered during context initialization - " +
-							"cancelling refresh attempt: " + ex);
-				}
-
-				// Destroy already created singletons to avoid dangling resources.
-				destroyBeans();
-
-				// Reset 'active' flag.
-				cancelRefresh(ex);
-
-				// Propagate exception to caller.
-				throw ex;
-			}
-
-			finally {
-				// Reset common introspection caches in Spring's core, since we
-				// might not ever need metadata for singleton beans anymore...
-				resetCommonCaches();
-			}
-		}
-	}
+        finally {
+            // Reset common introspection caches in Spring's core, since we
+            // might not ever need metadata for singleton beans anymore...
+            resetCommonCaches();
+        }
+    }
+}
 ```
 
