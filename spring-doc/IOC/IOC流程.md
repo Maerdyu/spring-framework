@@ -13,8 +13,10 @@ User user=(User)beanFactory.getBean("user");
 
 ## 过程分析
 ### ClassPathXmlApplicationContext
-- [类图](类图/ClassPathXmlApplicationContex类图.md)
-![ClassPathXmlApplicationContex](resource/ClassPathXmlApplicationContext类图.png)
+- ### [类图](类图/ClassPathXmlApplicationContex类图.md)
+
+    ![ClassPathXmlApplicationContex](resource/ClassPathXmlApplicationContext类图.png)
+  
 - 构造方法
 ```java
 public ClassPathXmlApplicationContext(
