@@ -111,31 +111,125 @@ protected String resolvePath(String path) {
 
 - resolveRequiredPlaceholders(path)替换占位符,实现在[AbstractEnvironment](../../../spring-core/src/main/java/org/springframework/core/env/AbstractEnvironment.java),是ConfigurableEnvironment的实现类，代码如下
 > ```java
-> public void validateRequiredProperties() throws MissingRequiredPropertiesException {
->   this.propertyResolver.validateRequiredProperties();
+> public String resolveRequiredPlaceholders(String text) throws IllegalArgumentException {
+>   if (this.strictHelper == null) {
+>       this.strictHelper = createPlaceholderHelper(false);
+>   }
+>   return doResolvePlaceholders(text, this.strictHelper);
 > }
 > ```
-> this.propertyResolver中包含了所有的属性和环境变量
 > ```java
-> private final ConfigurablePropertyResolver propertyResolver =
->   new PropertySourcesPropertyResolver(this.propertySources);
-> ```
-> propertyResolver默认使用[PropertySourcesPropertyResolver](../../../spring-core/src/main/java/org/springframework/core/env/PropertySourcesPropertyResolver.java),参考[PropertySourcesPropertyResolver类图](类图/StandardEnvironment类图.md)
-> validateRequiredProperties在其父类[AbstractPropertyResolver](../../../)中实现,代码如下
-> ```java
-> public void validateRequiredProperties() {
->   MissingRequiredPropertiesException ex = new MissingRequiredPropertiesException();
->   for (String key : this.requiredProperties) {
->       if (this.getProperty(key) == null) {
->           ex.addMissingRequiredProperty(key);
->       }
->   }
->   if (!ex.getMissingRequiredProperties().isEmpty()) {
->       throw ex;
->   }
+> private PropertyPlaceholderHelper createPlaceholderHelper(boolean ignoreUnresolvablePlaceholders) {
+>   return new PropertyPlaceholderHelper(this.placeholderPrefix, this.placeholderSuffix,
+>           this.valueSeparator, ignoreUnresolvablePlaceholders);
 > }
 > ```
-> 遍历requiredProperties，判断是否存在该属性或者环境变量值，可以通过子类实现initPropertySources方法,调用getEnvironment().setRequiredProperties配置必须的环境变量
+> placeholderPrefix 为"＄{"， placeholderSuffix为"}"，valueSeparator为":"，ignoreUnresolvablePlaceholders为false
+> ```java
+> public PropertyPlaceholderHelper(String placeholderPrefix, String placeholderSuffix,
+>         @Nullable String valueSeparator, boolean ignoreUnresolvablePlaceholders) {
+>
+>     Assert.notNull(placeholderPrefix, "'placeholderPrefix' must not be null");
+>     Assert.notNull(placeholderSuffix, "'placeholderSuffix' must not be null");
+>     this.placeholderPrefix = placeholderPrefix;
+>     this.placeholderSuffix = placeholderSuffix;
+>     String simplePrefixForSuffix = wellKnownSimplePrefixes.get(this.placeholderSuffix);
+>     if (simplePrefixForSuffix != null && this.placeholderPrefix.endsWith(simplePrefixForSuffix)) {
+>         this.simplePrefix = simplePrefixForSuffix;
+>     }
+>     else {
+>         this.simplePrefix = this.placeholderPrefix;
+>     }
+>     this.valueSeparator = valueSeparator;
+>     this.ignoreUnresolvablePlaceholders = ignoreUnresolvablePlaceholders;
+> }
+> ```
+> doResolvePlaceholders(text, this.strictHelper)代码如下
+> ```java
+> private String doResolvePlaceholders(String text, PropertyPlaceholderHelper helper) {
+>    return helper.replacePlaceholders(text, this::getPropertyAsRawString);
+> }
+> ```
+> 其中```this::getPropertyAsRawString```等价于```placeholderName -> getPropertyAsRawString(placeholderName)``` 返回PlaceholderResolver
+> ```java
+> @FunctionalInterface
+> public interface PlaceholderResolver {
+>     @Nullable
+>     String resolvePlaceholder(String placeholderName);
+> }
+> ```
+> helper.replacePlaceholders实现如下
+> ```java
+> public String replacePlaceholders(String value, PlaceholderResolver placeholderResolver) {
+>     Assert.notNull(value, "'value' must not be null");
+>     return parseStringValue(value, placeholderResolver, null);
+> }
+> ```
+>
+> ```java
+> protected String parseStringValue(
+>         String value, PlaceholderResolver placeholderResolver, @Nullable Set<String> visitedPlaceholders) {
+> 
+>     int startIndex = value.indexOf(this.placeholderPrefix);
+>     if (startIndex == -1) {
+>         return value;
+>     }
+>
+>     StringBuilder result = new StringBuilder(value);
+>     while (startIndex != -1) {
+>         int endIndex = findPlaceholderEndIndex(result, startIndex);
+>         if (endIndex != -1) {
+>             String placeholder = result.substring(startIndex + this.placeholderPrefix.length(), endIndex);
+>             String originalPlaceholder = placeholder;
+>             if (visitedPlaceholders == null) {
+>                 visitedPlaceholders = new HashSet<>(4);
+>             }
+>             if (!visitedPlaceholders.add(originalPlaceholder)) {
+>                 throw new IllegalArgumentException(
+>                         "Circular placeholder reference '" + originalPlaceholder + "' in property definitions");
+>             }
+>             // Recursive invocation, parsing placeholders contained in the placeholder key.
+>             placeholder = parseStringValue(placeholder, placeholderResolver, visitedPlaceholders);
+>             // Now obtain the value for the fully resolved key...
+>             String propVal = placeholderResolver.resolvePlaceholder(placeholder);
+>             if (propVal == null && this.valueSeparator != null) {
+>                 int separatorIndex = placeholder.indexOf(this.valueSeparator);
+>                 if (separatorIndex != -1) {
+>                     String actualPlaceholder = placeholder.substring(0, separatorIndex);
+>                     String defaultValue = placeholder.substring(separatorIndex + this.valueSeparator.length());
+>                     propVal = placeholderResolver.resolvePlaceholder(actualPlaceholder);
+>                     if (propVal == null) {
+>                         propVal = defaultValue;
+>                     }
+>                 }
+>             }
+>             if (propVal != null) {
+>                 // Recursive invocation, parsing placeholders contained in the
+>                 // previously resolved placeholder value.
+>                 propVal = parseStringValue(propVal, placeholderResolver, visitedPlaceholders);
+>                 result.replace(startIndex, endIndex + this.placeholderSuffix.length(), propVal);
+>                 if (logger.isTraceEnabled()) {
+>                     logger.trace("Resolved placeholder '" + placeholder + "'");
+>                 }
+>                 startIndex = result.indexOf(this.placeholderPrefix, startIndex + propVal.length());
+>             }
+>             else if (this.ignoreUnresolvablePlaceholders) {
+>                 // Proceed with unprocessed value.
+>                 startIndex = result.indexOf(this.placeholderPrefix, endIndex + this.placeholderSuffix.length());
+>             }
+>             else {
+>                 throw new IllegalArgumentException("Could not resolve placeholder '" +
+>                         placeholder + "'" + " in value \"" + value + "\"");
+>             }
+>             visitedPlaceholders.remove(originalPlaceholder);
+>         }
+>         else {
+>             startIndex = -1;
+>         }
+>     }
+>     return result.toString();
+> }
+> ```
 
 #### 刷新容器
 refresh 方法,定义在ConfigurableApplicationContext接口中,实现在
@@ -216,4 +310,32 @@ public void refresh() throws BeansException, IllegalStateException {
     }
 }
 ```
+- prepareRefresh(),准备刷新，提供initPropertySources给子类实现，验证环境对象中的requiredProperties属性是否都存在
+
+> ```java
+> public void validateRequiredProperties() throws MissingRequiredPropertiesException {
+>   this.propertyResolver.validateRequiredProperties();
+> }
+> ```
+> this.propertyResolver中包含了所有的属性和环境变量
+> ```java
+> private final ConfigurablePropertyResolver propertyResolver =
+>   new PropertySourcesPropertyResolver(this.propertySources);
+> ```
+> propertyResolver默认使用[PropertySourcesPropertyResolver](../../../spring-core/src/main/java/org/springframework/core/env/PropertySourcesPropertyResolver.java),参考[PropertySourcesPropertyResolver类图](类图/StandardEnvironment类图.md)
+> validateRequiredProperties在其父类[AbstractPropertyResolver](../../../)中实现,代码如下
+> ```java
+> public void validateRequiredProperties() {
+>   MissingRequiredPropertiesException ex = new MissingRequiredPropertiesException();
+>   for (String key : this.requiredProperties) {
+>       if (this.getProperty(key) == null) {
+>           ex.addMissingRequiredProperty(key);
+>       }
+>   }
+>   if (!ex.getMissingRequiredProperties().isEmpty()) {
+>       throw ex;
+>   }
+> }
+> ```
+> 遍历requiredProperties，判断是否存在该属性或者环境变量值，可以通过子类实现initPropertySources方法,调用getEnvironment().setRequiredProperties配置必须的环境变量
 
