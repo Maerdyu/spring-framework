@@ -421,6 +421,7 @@ public class BeanDefinitionParserDelegate {
 			aliases.addAll(Arrays.asList(nameArr));
 		}
 
+		// 默认BeanName使用ID，没有ID使用第一个Name作为BeanName
 		String beanName = id;
 		if (!StringUtils.hasText(beanName) && !aliases.isEmpty()) {
 			beanName = aliases.remove(0);

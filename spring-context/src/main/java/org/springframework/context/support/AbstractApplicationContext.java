@@ -611,6 +611,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		}
 
 		// Initialize any placeholder property sources in the context environment.
+		// 可以配置必要的环境变量,添加earlyApplicationListeners
 		initPropertySources();
 
 		// Validate that all properties marked as required are resolvable:
@@ -619,6 +620,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		getEnvironment().validateRequiredProperties();
 
 		// Store pre-refresh ApplicationListeners...
+		// 初始化earlyApplicationListeners
 		if (this.earlyApplicationListeners == null) {
 			this.earlyApplicationListeners = new LinkedHashSet<>(this.applicationListeners);
 		}
@@ -630,6 +632,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 		// Allow for the collection of early ApplicationEvents,
 		// to be published once the multicaster is available...
+		// 初始化earlyApplicationEvents
 		this.earlyApplicationEvents = new LinkedHashSet<>();
 	}
 

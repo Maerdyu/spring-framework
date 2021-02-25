@@ -78,7 +78,7 @@ protected String resolvePath(String path) {
     return getEnvironment().resolveRequiredPlaceholders(path);
 }
 ```
-- getEnvironment()获取环境变量, 返回[ConfigurableEnvironment](../../../spring-core/src/main/java/org/springframework/core/env/ConfigurableEnvironment.java)，参考[StandardEnvironment类图](类图/StandardEnvironment类图.md)，代码如下
+- getEnvironment()获取环境变量, 返回[ConfigurableEnvironment](../../spring-core/src/main/java/org/springframework/core/env/ConfigurableEnvironment.java)，参考[StandardEnvironment类图](类图/StandardEnvironment类图.md)，代码如下
 > ```java
 > public ConfigurableEnvironment getEnvironment() {
 >    if (this.environment == null) {
@@ -92,7 +92,7 @@ protected String resolvePath(String path) {
 >    return new StandardEnvironment();
 > }
 > ```
-> StandardEnvironment默认空构造，会调用父类[AbstractEnvironment](../../../spring-core/src/main/java/org/springframework/core/env/AbstractEnvironment.java)的空构造,代码如下
+> StandardEnvironment默认空构造，会调用父类[AbstractEnvironment](../../spring-core/src/main/java/org/springframework/core/env/AbstractEnvironment.java)的空构造,代码如下
 > ```java
 > public AbstractEnvironment() {
 >    customizePropertySources(this.propertySources);
@@ -109,7 +109,7 @@ protected String resolvePath(String path) {
 > ```
 > 把环境变量和属性存到MutablePropertySources propertySources属性中
 
-- resolveRequiredPlaceholders(path)替换占位符,实现在[AbstractEnvironment](../../../spring-core/src/main/java/org/springframework/core/env/AbstractEnvironment.java),是ConfigurableEnvironment的实现类，代码如下
+- resolveRequiredPlaceholders(path)替换占位符,实现在[AbstractEnvironment](../../spring-core/src/main/java/org/springframework/core/env/AbstractEnvironment.java),是ConfigurableEnvironment的实现类，代码如下
 > ```java
 > public String resolveRequiredPlaceholders(String text) throws IllegalArgumentException {
 >   if (this.strictHelper == null) {
@@ -230,6 +230,7 @@ protected String resolvePath(String path) {
 >     return result.toString();
 > }
 > ```
+> 支持嵌套和分隔符，resolvePlaceholder方法获取对应的环境变量，replace完成替换。不细究
 
 #### 刷新容器
 refresh 方法,定义在ConfigurableApplicationContext接口中,实现在
@@ -310,8 +311,55 @@ public void refresh() throws BeansException, IllegalStateException {
     }
 }
 ```
-- prepareRefresh(),准备刷新，提供initPropertySources给子类实现，验证环境对象中的requiredProperties属性是否都存在
-
+## prepareRefresh()
+> - prepareRefresh(),准备刷新，提供initPropertySources给子类实现，验证环境对象中的requiredProperties属性是否都存在,将初始化earlyApplicationListeners，
+> 并添加到applicationListeners，初始化earlyApplicationEvents。
+> ```java
+> protected void prepareRefresh() {
+>     // Switch to active.
+>     this.startupDate = System.currentTimeMillis();
+>     this.closed.set(false);
+>     this.active.set(true);
+>
+>     if (logger.isDebugEnabled()) {
+>         if (logger.isTraceEnabled()) {
+>             logger.trace("Refreshing " + this);
+>         }
+>         else {
+>             logger.debug("Refreshing " + getDisplayName());
+>         }
+>     }
+>
+>     // Initialize any placeholder property sources in the context environment.
+>     // 可以配置必要的环境变量,添加earlyApplicationListeners
+>     initPropertySources();
+>
+>     // Validate that all properties marked as required are resolvable:
+>     // see ConfigurablePropertyResolver#setRequiredProperties
+>     // 获取所有环境变量，验证requiredProperties中变量是否存在
+>     getEnvironment().validateRequiredProperties();
+>
+>     // Store pre-refresh ApplicationListeners...
+>     // 初始化earlyApplicationListeners
+>     if (this.earlyApplicationListeners == null) {
+>         this.earlyApplicationListeners = new LinkedHashSet<>(this.applicationListeners);
+>     }
+>     else {
+>         // Reset local application listeners to pre-refresh state.
+>         this.applicationListeners.clear();
+>         this.applicationListeners.addAll(this.earlyApplicationListeners);
+>     }
+>
+>     // Allow for the collection of early ApplicationEvents,
+>     // to be published once the multicaster is available...
+>     // 初始化earlyApplicationEvents
+>     this.earlyApplicationEvents = new LinkedHashSet<>();
+> }
+> ```
+> >  initPropertySources中能做那些事(持续补充中...)
+> > - 指定需要验证的环境变量，后续会验证环境变量是否存在
+> > - 配置自定义的earlyApplicationListeners
+> getEnvironment在占位符替换已经介绍了，这里也不用再初始化了，validateRequiredProperties代码如下
 > ```java
 > public void validateRequiredProperties() throws MissingRequiredPropertiesException {
 >   this.propertyResolver.validateRequiredProperties();
@@ -322,8 +370,9 @@ public void refresh() throws BeansException, IllegalStateException {
 > private final ConfigurablePropertyResolver propertyResolver =
 >   new PropertySourcesPropertyResolver(this.propertySources);
 > ```
-> propertyResolver默认使用[PropertySourcesPropertyResolver](../../../spring-core/src/main/java/org/springframework/core/env/PropertySourcesPropertyResolver.java),参考[PropertySourcesPropertyResolver类图](类图/StandardEnvironment类图.md)
-> validateRequiredProperties在其父类[AbstractPropertyResolver](../../../)中实现,代码如下
+> - propertyResolver默认使用[PropertySourcesPropertyResolver](../../spring-core/src/main/java/org/springframework/core/env/PropertySourcesPropertyResolver.java),参考[PropertySourcesPropertyResolver类图](类图/StandardEnvironment类图.md)
+> - validateRequiredProperties在其父类[AbstractPropertyResolver](../../spring-core/src/main/java/org/springframework/core/env/AbstractPropertyResolver.java)中实现,代码如下
+> - propertySources在AbstractEnvironment初始化的时候保存了环境变量
 > ```java
 > public void validateRequiredProperties() {
 >   MissingRequiredPropertiesException ex = new MissingRequiredPropertiesException();
@@ -339,3 +388,5 @@ public void refresh() throws BeansException, IllegalStateException {
 > ```
 > 遍历requiredProperties，判断是否存在该属性或者环境变量值，可以通过子类实现initPropertySources方法,调用getEnvironment().setRequiredProperties配置必须的环境变量
 
+## ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+> 这里面解析XML文件并加载BeanDefinition,过程比较复杂，参考[XML解析.md](XML解析.md)
