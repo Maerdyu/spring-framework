@@ -518,8 +518,8 @@ protected void doRegisterBeanDefinitions(Element root) {
     this.delegate = parent;
 }
 ```
-> - createDelegate 完成默认注册，即lazy-init, autowire, dependency check settings, 
-    > init-method, destroy-method and merge 标签的读取，发布一个默认注册事件
+> - createDelegate 完成默认注册，即lazy-init, autowire, dependency check settings,
+    init-method, destroy-method and merge 标签的读取，发布一个默认注册事件
 > - PROFILE_ATTRIBUTE 标签读取加载profile配置
 > - preProcessXml postProcessXml默认空实现，子类实现
 > - parseBeanDefinitions
@@ -753,19 +753,16 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
 
 > 自定义标签解析如下
 ```java
-private void parseDefaultElement(Element ele, BeanDefinitionParserDelegate delegate) {
-    if (delegate.nodeNameEquals(ele, IMPORT_ELEMENT)) {
-        importBeanDefinitionResource(ele);
+public BeanDefinition parseCustomElement(Element ele, @Nullable BeanDefinition containingBd) {
+    String namespaceUri = getNamespaceURI(ele);
+    if (namespaceUri == null) {
+        return null;
     }
-    else if (delegate.nodeNameEquals(ele, ALIAS_ELEMENT)) {
-        processAliasRegistration(ele);
+    NamespaceHandler handler = this.readerContext.getNamespaceHandlerResolver().resolve(namespaceUri);
+    if (handler == null) {
+        error("Unable to locate Spring NamespaceHandler for XML schema namespace [" + namespaceUri + "]", ele);
+        return null;
     }
-    else if (delegate.nodeNameEquals(ele, BEAN_ELEMENT)) {
-        processBeanDefinition(ele, delegate);
-    }
-    else if (delegate.nodeNameEquals(ele, NESTED_BEANS_ELEMENT)) {
-        // recurse
-        doRegisterBeanDefinitions(ele);
-    }
+    return handler.parse(ele, new ParserContext(this.readerContext, this, containingBd));
 }
 ```
