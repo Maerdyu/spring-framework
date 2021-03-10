@@ -767,18 +767,3 @@ public BeanDefinition parseCustomElement(Element ele, @Nullable BeanDefinition c
     return handler.parse(ele, new ParserContext(this.readerContext, this, containingBd));
 }
 ```
-
-
-
-## Question
-
-### 1:解析过程
-
-- 配置文件读取，将xml文件读取为resource
-- 资源的一些配置，比如忽略一些自动装配的接口，包括BeanNameAware，BeanFactoryAware，BeanClassLoaderAware。通过EncodedResource的编码处理
-- 读取文件类型，是DTD还是XSD，默认XSD，判断方式为看文件有没有DOCTYPE
-- 将inputsource解析成Document，其中EntityResolver作用是根据配置文件指定的publicId和SystemId寻找验证文件。
-- 根据Document的Root元素读取属性并解析
-
-
-### 2：Resource DTD XSD EntityResolver Profile 解析元素
