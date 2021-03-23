@@ -767,3 +767,8 @@ public BeanDefinition parseCustomElement(Element ele, @Nullable BeanDefinition c
     return handler.parse(ele, new ParserContext(this.readerContext, this, containingBd));
 }
 ```
+
+#### 回顾说明
+> XML解析的结果就是加载BeanDefinition,为getBean提供创建Bean对象的参数。AbstractBeanDefinition定义了大部分的属性
+> XML解析就是loadBeanDefinitions（Resource）这个方法,先转化成Document再解析各个元素并注册。
+> TODO AbstractBeanDefinition的各个属性说明
